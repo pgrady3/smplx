@@ -24,6 +24,7 @@ import numpy as np
 
 import torch
 import torch.nn as nn
+from .lbs import batch_rodrigues
 
 from .lbs import (
     lbs, vertices2landmarks, find_dynamic_lmk_idx_and_bcoords, blend_shapes)
@@ -1663,6 +1664,7 @@ class MANO(SMPL):
         transl: Optional[Tensor] = None,
         return_verts: bool = True,
         return_full_pose: bool = False,
+        pose2rot: bool = True,
         **kwargs
     ) -> MANOOutput:
         ''' Forward pass for the MANO model
@@ -1685,16 +1687,24 @@ class MANO(SMPL):
                 'bi,ij->bj', [hand_pose, self.hand_components])
 
         full_pose = torch.cat([global_orient, hand_pose], dim=1)
-        full_pose += self.pose_mean
+
+        if not pose2rot:
+            if torch.max(torch.abs(self.pose_mean)) > 0:
+                raise NotImplementedError('non-zero pose mean not implemented for rotmat input')
+
+            # pose_mean_rotmat = batch_rodrigues(self.pose_mean.view(-1, 3)).view([1, -1, 3, 3])
+            # full_pose += pose_mean_rotmat
+        else:
+            full_pose += self.pose_mean
 
         vertices, joints = lbs(betas, full_pose, self.v_template,
                                self.shapedirs, self.posedirs,
                                self.J_regressor, self.parents,
-                               self.lbs_weights, pose2rot=True,
+                               self.lbs_weights, pose2rot=pose2rot,
                                )
 
         # # Add pre-selected extra joints that might be needed
-        # joints = self.vertex_joint_selector(vertices, joints)
+        joints = self.vertex_joint_selector(vertices, joints)
 
         if self.joint_mapper is not None:
             joints = self.joint_mapper(joints)
