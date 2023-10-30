@@ -1639,6 +1639,10 @@ class MANO(SMPL):
         # pose_mean_tensor = torch.tensor(pose_mean, dtype=dtype)
         self.register_buffer('pose_mean', pose_mean_tensor)
 
+        if not is_rhand:
+            print('Got a left hand, implementing Patricks left hand shapedirs fix')
+            self.shapedirs[:,0,:] *= -1
+
     def name(self) -> str:
         return 'MANO'
 
